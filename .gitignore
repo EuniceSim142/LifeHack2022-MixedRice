@@ -1,0 +1,8 @@
+# Virtual Environment
+env
+
+# Secure Keys
+.env
+
+# Others
+.ipynb_checkpoints
