@@ -3,6 +3,10 @@ env
 
 # Secure Keys
 .env
+__pycache__
+
+# data folder
+data
 
 # Others
 .ipynb_checkpoints
