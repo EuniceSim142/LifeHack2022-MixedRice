@@ -6,7 +6,8 @@ env
 __pycache__
 
 # data folder
-data
+# data
+*.db
 
 # Others
 .ipynb_checkpoints
