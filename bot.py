@@ -91,14 +91,17 @@ async def getRecyclableItems(update, context):
     await query.answer()
     category = query.data
 
-    sql = "SELECT item_name from item where category = :cat "
+    sql = "SELECT item_name from item where category = :cat  and is_recyclable = true"
     query = session.execute(sql, {"cat": category})
     items = query.all()
     print_item = "List of popular items: "
-    for i in range(len(items)):
-         print_item += "\n" + str(i+1) +". "+  convertTuple(items[i])
-    # for item in items:
-    #     print_item += "\n" + convertTuple(item)
+    if len(items) == 0:
+        print_item = "Sorry no item found"
+    else:
+        for i in range(len(items)):
+            print_item += "\n" + str(i+1) +". "+  convertTuple(items[i])
+        # for item in items:
+        #     print_item += "\n" + convertTuple(item)
 
     chat_id=update.effective_chat.id
     await context.bot.send_message(chat_id, text=print_item)
