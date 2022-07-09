@@ -18,3 +18,5 @@ To install dependencies, run:
 | Pandas | `pip install pandas` |
 | Psycopg2 | `pip install psycopg2` |
 | Psycopg2-binary | `pip install psycopg2-binary` |
+| GeoPandas | `pip install geopandas` |
+| GeoPy | `pip install geopy` |

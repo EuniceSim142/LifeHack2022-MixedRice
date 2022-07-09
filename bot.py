@@ -1,30 +1,55 @@
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackQueryHandler, CommandHandler, MessageHandler, filters
-import requests
+# Python Packages
 import os
-from dotenv import load_dotenv
+from pyrsistent import m
+import requests
 import json
-from database import session_engine_from_connection_string
+from dotenv import load_dotenv
+import pandas as pd
+import geopandas as gpd
+from geopy.geocoders import Nominatim
+import warnings
+warnings.filterwarnings("ignore")
 
+# Telegram Bot Packages
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update, KeyboardButton
+from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackQueryHandler, CommandHandler, MessageHandler, filters, Updater
 
+# Local Modules
+from database import (
+    session_engine_from_connection_string,
+    Item
+)
+from utilities import (
+    BINS_GDF, 
+    find_nearest_bin_location,
+    convert_row_to_dict
+)
+
+############################################ Load Tokens / API KEYS
+
+load_dotenv()
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+CAT_API_KEY = os.getenv('CAT_API_KEY')
 POSTGRESQL_CONNECTION_STRING = os.getenv('POSTGRESQL_CONNECTION_STRING')
+
+############################################ Setup DB Connection
+
 if (POSTGRESQL_CONNECTION_STRING ):
     session, engine = session_engine_from_connection_string(POSTGRESQL_CONNECTION_STRING)
 else:
     session, engine = session_engine_from_connection_string(None)
 
-load_dotenv()
+#### Setup Geolocator (For Geocoding)
+geolocator = Nominatim(user_agent="myGeocoder")
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-CAT_API_KEY = os.getenv('CAT_API_KEY')
-
-BREED, NO_OF_PHOTOS, GIF = range(3)
-
+############################################ Print Log in Terminal
 import logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+############################################ Commands To Be Removed [1]
 
 async def hello(update, context):
     # sql = "SELECT * from item"
@@ -32,7 +57,7 @@ async def hello(update, context):
     # print(query.all())
     await update.message.reply_text(f'Hello {update.effective_user.first_name}')
 
-
+BREED, NO_OF_PHOTOS, GIF = range(3)
 
 async def getCat(update, context):
     user = update.message.from_user
@@ -66,6 +91,9 @@ async def getCat(update, context):
         url = cats[0]['url']
         await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
 
+
+############################################ Get List of Items
+
 async def checkIfRecyclable(update, context):
     sql = "SELECT distinct category from item"
     query = session.execute(sql)
@@ -91,22 +119,83 @@ async def getRecyclableItems(update, context):
     await query.answer()
     category = query.data
 
-    sql = "SELECT item_name from item where category = :cat  and is_recyclable = true"
+    sql = "SELECT item_name, is_recyclable from item where category = :cat"
     query = session.execute(sql, {"cat": category})
     items = query.all()
-    print_item = "List of popular items: "
+
+    print_item = f"List of {category} Items:\n"
     if len(items) == 0:
-        print_item = "Sorry no item found"
+        print_item = "Sorry, no item is found for this category"
     else:
         for i in range(len(items)):
-            print_item += "\n" + str(i+1) +". "+  convertTuple(items[i])
-        # for item in items:
-        #     print_item += "\n" + convertTuple(item)
+            if items[i][1]:
+                display_name = items[i][0] + " ✅"
+            else:
+                display_name = items[i][0] + " ❌"
+
+            print_item += "\n" + str(i+1) + ". " + display_name
+            # print_item += "\n" + str(i+1) +". "+  convertTuple(items[i])
 
     chat_id=update.effective_chat.id
     await context.bot.send_message(chat_id, text=print_item)
 
 
+############################################ Get Nearest Location of Bin
+
+LOCATION_ONE, LOCATION_TWO = range(2)
+
+async def getUserLocation(update, context):
+    # keyboard = [
+    #     KeyboardButton("Share My Location", callback_data="Share", request_location=True),
+    #     KeyboardButton("Type My Location", callback_data="Type"),
+    # ]
+    # print(keyboard)
+    # reply_markup = ReplyKeyboardMarkup(keyboard)
+
+    ### [Not Able to Request Location, Share Location Feature Removed]
+    # reply_markup = ReplyKeyboardMarkup([
+    #         [KeyboardButton("Share My Location", callback_data="Share", request_location=True)],
+    #         [KeyboardButton("Type My Location", callback_data="Type")]
+    # ])
+    
+    # await update.message.reply_text(text='Tell us where are you now!', reply_markup=reply_markup)
+
+    await update.message.reply_text(text='Tell us where are you now! \n\nTry to be more specific to obtain a more accurate result 😃')
+    return LOCATION_ONE
+
+
+### [Not Able to Request Location, Share Location Feature Removed]
+# async def getLocation(update, context):
+    # await update.message.reply_text(text='Tell us where are you now! \n\nTry to be as specific as you can, thanks! :)')
+    # return LOCATION_TWO
+
+# async def generateLocation(update, context):
+#     longitude = update.message.longitude
+#     latitude = update.message.latitude
+    # nearest_bin_location, nearest_bin_lon, nearest_bin_lat  = find_nearest_bin_location(BINS_GDF, longitude, latitude)
+    # await update.message.reply_text(f'Nearest Bin Location: {nearest_bin_location}')
+    # await update.message.reply_text(f'https://maps.google.com/?q={nearest_bin_lat},{nearest_bin_lon}')
+    # return ConversationHandler.END
+
+
+async def getNearestBinLocation(update, context):
+    input = update.message.text
+    location = geolocator.geocode(input)
+
+    if location:
+        latitude = location.latitude
+        longitude = location.longitude
+        nearest_bin_location, nearest_bin_lon, nearest_bin_lat  = find_nearest_bin_location(BINS_GDF, longitude, latitude)
+        await update.message.reply_text(f'Nearest Bin Location ♻️🗑:\n\n{nearest_bin_location}')
+        await update.message.reply_text(f'https://maps.google.com/?q={nearest_bin_lat},{nearest_bin_lon}')
+        return ConversationHandler.END
+
+    else:
+        await update.message.reply_text(f'Unable to find specified location, Try again!')
+        return LOCATION_TWO
+
+
+############################################ Commands To Be Removed [2]
 
 async def chooseBreed(update, context):
     keyboard = [
@@ -271,6 +360,11 @@ async def cancel(update, context):
     return ConversationHandler.END
 
 
+    
+
+
+############################################ Building of Bot
+
 bot = ApplicationBuilder().token(BOT_TOKEN).build()
 
 settings_handler = ConversationHandler(
@@ -304,6 +398,17 @@ bot.add_handler(CommandHandler("cat", getCat))
 bot.add_handler(CommandHandler("checkIfRecyclable", checkIfRecyclable))
 bot.add_handler(CallbackQueryHandler(getRecyclableItems))
 # bot.add_handler(CallbackQueryHandler(getCatWithBreed))
-bot.add_handler(settings_handler)
+locations_handler = ConversationHandler(
+    entry_points=[CommandHandler('findNearestBin', getUserLocation)],
+    states={
+        LOCATION_ONE: [
+            MessageHandler(filters.TEXT, getNearestBinLocation)
+        ],
+        LOCATION_TWO: [
+            MessageHandler(filters.TEXT, getNearestBinLocation)
+        ]
+    }, fallbacks=[CommandHandler("cancel", cancel)]
+)
+bot.add_handler(locations_handler)
 
 bot.run_polling()
