@@ -4,6 +4,14 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
+from database import session_engine_from_connection_string
+
+
+POSTGRESQL_CONNECTION_STRING = os.getenv('POSTGRESQL_CONNECTION_STRING')
+if (POSTGRESQL_CONNECTION_STRING ):
+    session, engine = session_engine_from_connection_string(POSTGRESQL_CONNECTION_STRING)
+else:
+    session, engine = session_engine_from_connection_string(None)
 
 load_dotenv()
 
@@ -19,7 +27,12 @@ logging.basicConfig(
 )
 
 async def hello(update, context):
+    # sql = "SELECT * from item"
+    # query = session.execute(sql)
+    # print(query.all())
     await update.message.reply_text(f'Hello {update.effective_user.first_name}')
+
+
 
 async def getCat(update, context):
     user = update.message.from_user
@@ -53,6 +66,44 @@ async def getCat(update, context):
         url = cats[0]['url']
         await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
 
+async def checkIfRecyclable(update, context):
+    sql = "SELECT distinct category from item"
+    query = session.execute(sql)
+    categories = query.all()
+    keyboard = []
+    for category in categories:
+        keyboard.append([InlineKeyboardButton(category[0], callback_data=category[0])]) 
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text("Please choose a category:", reply_markup=reply_markup)
+
+def convertTuple(tup):
+        # initialize an empty string
+    str = ''
+    for item in tup:
+        str = str + item
+    return str
+
+async def getRecyclableItems(update, context):
+    
+    query = update.callback_query
+    await query.answer()
+    category = query.data
+
+    sql = "SELECT item_name from item where category = :cat "
+    query = session.execute(sql, {"cat": category})
+    items = query.all()
+    print_item = "List of popular items: "
+    for i in range(len(items)):
+         print_item += "\n" + str(i+1) +". "+  convertTuple(items[i])
+    # for item in items:
+    #     print_item += "\n" + convertTuple(item)
+
+    chat_id=update.effective_chat.id
+    await context.bot.send_message(chat_id, text=print_item)
+
+
 
 async def chooseBreed(update, context):
     keyboard = [
@@ -70,16 +121,18 @@ async def chooseBreed(update, context):
 
     await update.message.reply_text("Please choose a breed:", reply_markup=reply_markup)
 
-async def getCatWithBreed(update, context):
-    query = update.callback_query
 
-    await query.answer()
 
-    breed = query.data
+# async def getCatWithBreed(update, context):
+#     query = update.callback_query
 
-    cats = requests.get(f'https://api.thecatapi.com/v1/images/search?api_key{CAT_API_KEY}&breed_ids={breed}').json()
-    url = cats[0]['url']
-    await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
+#     await query.answer()
+
+#     breed = query.data
+
+#     cats = requests.get(f'https://api.thecatapi.com/v1/images/search?api_key{CAT_API_KEY}&breed_ids={breed}').json()
+#     url = cats[0]['url']
+#     await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
 
 async def saveUser(update, context):
     user = update.message.from_user
@@ -244,8 +297,10 @@ settings_handler = ConversationHandler(
 
 bot.add_handler(CommandHandler("hello", hello))
 bot.add_handler(CommandHandler("cat", getCat))
-bot.add_handler(CommandHandler("breed", chooseBreed))
-bot.add_handler(CallbackQueryHandler(getCatWithBreed))
+# bot.add_handler(CommandHandler("breed", chooseBreed))
+bot.add_handler(CommandHandler("checkIfRecyclable", checkIfRecyclable))
+bot.add_handler(CallbackQueryHandler(getRecyclableItems))
+# bot.add_handler(CallbackQueryHandler(getCatWithBreed))
 bot.add_handler(settings_handler)
 
 bot.run_polling()

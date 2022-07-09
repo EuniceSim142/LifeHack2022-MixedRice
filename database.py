@@ -23,10 +23,16 @@ def session_engine_from_connection_string(conn_string):
 
     e.g. session, engine = session_engine_from_connection_string(string)
     '''
+    if conn_string is None:
+        path = os.path.join(
+            os.getcwd(), "postgres.db"
+        )
+        conn_string = "sqlite:///" + path.replace("\\", "\\\\")
     engine = create_engine(conn_string)
     Base.metadata.bind = engine
     DBSession = sessionmaker(bind=engine)
     return DBSession(), engine
+
 
 # Convert DF into Table Objects
 def convert_df_to_lst_of_table_objects(df, Table):
