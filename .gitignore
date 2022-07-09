@@ -1,13 +1,13 @@
 # Virtual Environment
 env
+.DS_Store
 
 # Secure Keys
 .env
 __pycache__
 
 # data folder
-# data
-*.db
+data
 
 # Others
 .ipynb_checkpoints
