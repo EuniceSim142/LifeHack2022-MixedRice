@@ -1,6 +1,16 @@
 # LifeHack2022-MixedRice
 
 ## About Project
+<p align="left">
+		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/checkifrecyclable.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
+</p>
+<p align="left">
+		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/findnearestbin.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
+</p>
+<p align="left">
+		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/quiz.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
+</p>
+
 | Features | Description |
 | :------------- |:-------------|
 | /start | Description of bot |
