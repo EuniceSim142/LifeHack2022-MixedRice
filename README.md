@@ -1,15 +1,20 @@
 # LifeHack2022-MixedRice
 
 ## About Project
-<p align="left">
+Our Team, Team MixedRice, aims to use our RecyclingRight Bot to make recycling easier and more accessible to Singaporeans.
+<div style="display:flex">
+<span>
 		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/checkifrecyclable.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
-</p>
-<p align="left">
+</span>
+<span>
 		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/findnearestbin.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
-</p>
-<p align="left">
+</span>
+<span>
 		<img src="https://github.com/EuniceSim142/LifeHack2022-MixedRice/blob/main/assets/quiz.jpg?raw=true" alt="IMAGE ALT TEXT HERE" width="200" border="10" />
-</p>
+</span>
+</div></br>
+
+Our bot can be accessed on @recycleright_bot, the features available in our bot is is shown in the screenshots above and table below:
 
 | Features | Description |
 | :------------- |:-------------|
