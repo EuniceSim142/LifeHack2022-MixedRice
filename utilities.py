@@ -1,10 +1,10 @@
-# Python Packages
+# # Python Packages
 import os
 import pandas as pd
 import geopandas as gpd
 
 
-####### Helper Functions
+# ####### Helper Functions
 
 # Used during DB Querying
 def convert_row_to_dict(row, Table):
