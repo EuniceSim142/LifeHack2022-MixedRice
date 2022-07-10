@@ -24,9 +24,8 @@ from database import (
     Item
 )
 from utilities import (
-    # BINS_GDF, 
-    # find_nearest_bin_location,
-    convert_row_to_dict
+    BINS_GDF, 
+    find_nearest_bin_location
 )
 
 ############################################ Load Tokens / API KEYS
@@ -53,10 +52,26 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-############################################ Commands To Be Removed [1]
+############################################ Start
 
+# Test
 async def hello(update, context):
     await update.message.reply_text(f'Hello {update.effective_user.first_name}')
+
+async def start(update, context):
+    reply = "Welcome to RecycleRight! ♻️\n\n"
+    reply += "We are here to to make recycling easier and more accessible, and to help you to recycle right! 😄\n\n"
+    await update.message.reply_text(reply)
+
+############################################ Help
+async def help(update, context):
+    reply = "Available Commands:\n\n"
+    reply += "/findnearestbin: Find the nearest Recycling Bin\n"
+    reply += "/checkifrecyclable: Check if an item is Recyclable\n"
+    reply += "/quiz: Test your recycling knowledge\n"
+    await update.message.reply_text(reply)
+
+############################################ Quiz
 
 async def quiz(update, context):
     session, engine = session_engine_from_connection_string(POSTGRESQL_CONNECTION_STRING)
@@ -193,7 +208,7 @@ async def getRecyclableItems(update, context):
 
     print_item = f"List of {category} Items:\n"
     if len(items) == 0:
-        print_item = "Sorry, no item is found for this category"
+        return ConversationHandler.END
     else:
         for i in range(len(items)):
             if items[i][1]:
@@ -215,42 +230,33 @@ async def getRecyclableItems(update, context):
 LOCATION_ONE, LOCATION_TWO = range(2)
 
 async def getUserLocation(update, context):
-    # keyboard = [
-    #     KeyboardButton("Share My Location", callback_data="Share", request_location=True),
-    #     KeyboardButton("Type My Location", callback_data="Type"),
-    # ]
-    # print(keyboard)
-    # reply_markup = ReplyKeyboardMarkup(keyboard)
-
-    ### [Not Able to Request Location, Share Location Feature Removed]
-    # reply_markup = ReplyKeyboardMarkup([
-    #         [KeyboardButton("Share My Location", callback_data="Share", request_location=True)],
-    #         [KeyboardButton("Type My Location", callback_data="Type")]
-    # ])
+    reply_markup = ReplyKeyboardMarkup([
+            [KeyboardButton("Share My Location\n(Only Available on Mobile Devices)", callback_data="Share", request_location=True)],
+            [KeyboardButton("Type My Location", callback_data="Type")],
+            [KeyboardButton("Cancel", callback_data="Cancel")]
+    ])
     
-    # await update.message.reply_text(text='Tell us where are you now!', reply_markup=reply_markup)
-
-    await update.message.reply_text(text='Tell us where are you now! \n\nTry to be more specific to obtain a more accurate result 😃')
+    await update.message.reply_text(text='Pick an option from below!', reply_markup=reply_markup)
     return LOCATION_ONE
 
 
-### [Not Able to Request Location, Share Location Feature Removed]
-# async def getLocation(update, context):
-    # await update.message.reply_text(text='Tell us where are you now! \n\nTry to be as specific as you can, thanks! :)')
-    # return LOCATION_TWO
+async def getLocation(update, context):
+    await update.message.reply_text(text='Tell us where are you now! \n\nTry to be more specific to obtain a better result 😃', reply_markup=ReplyKeyboardRemove())
+    return LOCATION_TWO
 
-# async def generateLocation(update, context):
-#     longitude = update.message.longitude
-#     latitude = update.message.latitude
-    # nearest_bin_location, nearest_bin_lon, nearest_bin_lat  = find_nearest_bin_location(BINS_GDF, longitude, latitude)
-    # await update.message.reply_text(f'Nearest Bin Location: {nearest_bin_location}')
-    # await update.message.reply_text(f'https://maps.google.com/?q={nearest_bin_lat},{nearest_bin_lon}')
-    # return ConversationHandler.END
+
+async def generateLocation(update, context):
+    longitude = update.message.location.longitude
+    latitude = update.message.location.latitude
+    nearest_bin_location, nearest_bin_lon, nearest_bin_lat  = find_nearest_bin_location(BINS_GDF, longitude, latitude)
+    await update.message.reply_text(f'Nearest Bin Location ♻️🗑:\n\n{nearest_bin_location}', reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(f'https://maps.google.com/?q={nearest_bin_lat},{nearest_bin_lon}')
+    return ConversationHandler.END
 
 
 async def getNearestBinLocation(update, context):
     input = update.message.text
-    location = geolocator.geocode(input)
+    location = geolocator.geocode(f"{input} Singapore")
 
     if location:
         latitude = location.latitude
@@ -261,52 +267,34 @@ async def getNearestBinLocation(update, context):
         return ConversationHandler.END
 
     else:
-        await update.message.reply_text(f'Unable to find specified location, Try again!')
-        return LOCATION_TWO
+        await update.message.reply_text(f'Sorry I can\'t find your location :(')
+        return ConversationHandler.END
+
+async def cancel(update, context):
+    user = update.message.from_user
+    await update.message.reply_text(
+        "Operation Ended", reply_markup=ReplyKeyboardRemove()
+    )
+
+    return ConversationHandler.END
 
 
 ############################################ Building of Bot
 
 bot = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# settings_handler = ConversationHandler(
-#         entry_points=[CommandHandler("settings", saveUser)],
-#         states={
-#             BREED: [MessageHandler(filters.Regex("""^(All of them!|
-#                                                       Bengal|
-#                                                       Persian|
-#                                                       Munchkin|
-#                                                       Ragamuffin|
-#                                                       Burmese|
-#                                                       Russian Blue|
-#                                                       Maine Coon|
-#                                                       Abyssinian)$"""), saveBreed)],
-
-#             NO_OF_PHOTOS: [
-#                             MessageHandler(filters.TEXT & filters.Regex("[1-9]"), saveNoOfPhotos), 
-#                             MessageHandler(~(filters.TEXT & filters.Regex("[1-9]")), invalidPhotoNo)
-#                           ],
-
-#             GIF: [
-#                 MessageHandler(filters.TEXT & filters.Regex("^(GIF|JPG)$"), saveGif),
-#             ],
-#         },
-#         fallbacks=[CommandHandler("cancel", cancel)],
-#     )
-async def cancel(update, context):
-    user = update.message.from_user
-    await update.message.reply_text(
-        "Ok, we'll stop saving your settings", reply_markup=ReplyKeyboardRemove()
-    )
-
-    return ConversationHandler.END
+bot.add_handler(CommandHandler("start", start))
+bot.add_handler(CommandHandler("help", help))
 
 bot.add_handler(CommandHandler("hello", hello))
+
 locations_handler = ConversationHandler(
     entry_points=[CommandHandler('findNearestBin', getUserLocation)],
     states={
         LOCATION_ONE: [
-            MessageHandler(filters.TEXT, getNearestBinLocation)
+            MessageHandler(filters.TEXT & filters.Regex('Type'), getLocation),
+            MessageHandler(filters.TEXT & filters.Regex('Cancel'), cancel),
+            MessageHandler(filters.LOCATION, generateLocation)
         ],
         LOCATION_TWO: [
             MessageHandler(filters.TEXT, getNearestBinLocation)
@@ -314,6 +302,7 @@ locations_handler = ConversationHandler(
     }, fallbacks=[CommandHandler("cancel", cancel)]
 )
 bot.add_handler(locations_handler)
+
 checkRecyclable_handler = ConversationHandler(
     entry_points=[CommandHandler("checkIfRecyclable", checkIfRecyclable)],
     states={RECYCLABLE_RESPONSE: [CallbackQueryHandler(getRecyclableItems)]}, fallbacks=[CommandHandler("cancel", cancel)]
