@@ -1,4 +1,7 @@
 # Python Packages
+from ctypes import resize
+from re import X
+import requests
 import os
 from pyrsistent import m
 import requests
@@ -9,6 +12,7 @@ import geopandas as gpd
 from geopy.geocoders import Nominatim
 import warnings
 warnings.filterwarnings("ignore")
+import random
 
 # Telegram Bot Packages
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update, KeyboardButton
@@ -20,8 +24,8 @@ from database import (
     Item
 )
 from utilities import (
-    BINS_GDF, 
-    find_nearest_bin_location,
+    # BINS_GDF, 
+    # find_nearest_bin_location,
     convert_row_to_dict
 )
 
@@ -52,48 +56,108 @@ logging.basicConfig(
 ############################################ Commands To Be Removed [1]
 
 async def hello(update, context):
-    # sql = "SELECT * from item"
-    # query = session.execute(sql)
-    # print(query.all())
     await update.message.reply_text(f'Hello {update.effective_user.first_name}')
 
-BREED, NO_OF_PHOTOS, GIF = range(3)
+async def quiz(update, context):
+    session, engine = session_engine_from_connection_string(POSTGRESQL_CONNECTION_STRING)
+    id = update.effective_chat.id
+    score = 0
 
-async def getCat(update, context):
-    user = update.message.from_user
-    with open('users.json', 'r') as user_db:
-        users = json.load(user_db)
+    data1 = "select item_name, disposal_instruction, image_url, is_recyclable from item"
+    data2 = "select distinct disposal_instruction from item"
 
-    if str(user.id) in users:
-        user_info = users[str(user.id)]
-        breed = '' if user_info["breed"] == 'all' else 'breed_ids=' + user_info['breed']
-        no_of_photos = int(user_info["no_of_photos"])
-        is_gif = "gif" if user_info["is_gif"] else "jpg,png"
+    query1 = session.execute(data1)
+    query2 = session.execute(data2)
 
-        cats = requests.get(f'https://api.thecatapi.com/v1/images/search?api_key{CAT_API_KEY}&limit={no_of_photos}&{breed}&mime_types={is_gif}').json()
+    info = query1.all()
+    unique_instructions = query2.all()
+    random.shuffle(info)
+    random.shuffle(unique_instructions)
 
-        if not cats:
-            await update.message.reply_text("Sorry, theres no cats for your settings. Try changing them!")
-            return
-
-        for cat in cats:
-            url = cat['url']
-            if user_info["is_gif"]:
-                await context.bot.send_animation(chat_id=update.effective_chat.id, animation=url)
-            else:
-                await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
+    selectedQn = random.choice(info)
     
-        if len(cats) < no_of_photos:
-            await update.message.reply_text("Sorry, that's all the cats we could find")
+    qnType = random.randint(0,1)
+
+    if qnType == 0:
+        item_name = selectedQn[0]
+        img_url = selectedQn[2]
+        is_recyclable = selectedQn[3]
+
+        keyboard=[]
+
+        if is_recyclable == True:
+            keyboard = [[
+            InlineKeyboardButton("Yes", callback_data="Correct!"),
+            InlineKeyboardButton("No", callback_data="Incorrect. This item is actually recyclable."),
+            ]]
+        elif is_recyclable == False:
+            keyboard = [[
+            InlineKeyboardButton("Yes", callback_data="Incorrect. This item is not recyclable."),
+            InlineKeyboardButton("No", callback_data="Correct!"),
+            ]]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text("Is this item recyclable?")
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_url, caption=item_name, reply_markup=reply_markup)
+
 
     else:
-        cats = requests.get(f'https://api.thecatapi.com/v1/images/search?api_key{CAT_API_KEY}').json()
-        url = cats[0]['url']
-        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
+        item_name = selectedQn[0]
+        img_url = selectedQn[2]
+        is_recyclable = selectedQn[3]
+        correct_ans = selectedQn[1]
+
+        choices = []
+        choices.append(correct_ans)
+
+        while len(choices) < 3:
+            rand_choice = random.choice(unique_instructions)
+            if type(rand_choice) != str:
+                rand_choice = rand_choice[0]
+            if rand_choice not in choices:
+                choices.append(rand_choice)
+
+        keyboard = []
+        random.shuffle(choices)
+
+        for c in choices:
+            if c == correct_ans:
+                reply = "Correct!"
+                keyboard.append([InlineKeyboardButton(c, callback_data=reply)])
+
+            else:
+                reply = "Incorrect. "
+                if correct_ans == "Can be recycled at specific collection points":
+                    reply = "Incorrect. It can be recycled at specific collection points."
+                else:
+                    reply = "Incorrect. You should " + correct_ans.lower() + "."
+
+                keyboard.append([InlineKeyboardButton(c, callback_data=reply)])
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text("What is the proper way to dispose this item?")
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_url, caption=item_name, reply_markup=reply_markup)
+
+    return QUIZ_RESPONSE
+
+            
+QUIZ_RESPONSE = range(1)
+async def disposeAns(update, context):
+
+    query = update.callback_query
+    await query.answer()
+    ans = query.data
+
+
+    chat_id=update.effective_chat.id
+    await context.bot.send_message(chat_id, text=ans)
+    return ConversationHandler.END
 
 
 ############################################ Get List of Items
-
+RECYCLABLE_RESPONSE = range(1)
 async def checkIfRecyclable(update, context):
     sql = "SELECT distinct category from item"
     query = session.execute(sql)
@@ -105,6 +169,9 @@ async def checkIfRecyclable(update, context):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text("Please choose a category:", reply_markup=reply_markup)
+    return RECYCLABLE_RESPONSE
+    
+    
 
 def convertTuple(tup):
         # initialize an empty string
@@ -112,6 +179,7 @@ def convertTuple(tup):
     for item in tup:
         str = str + item
     return str
+
 
 async def getRecyclableItems(update, context):
     
@@ -138,6 +206,8 @@ async def getRecyclableItems(update, context):
 
     chat_id=update.effective_chat.id
     await context.bot.send_message(chat_id, text=print_item)
+    return ConversationHandler.END
+    
 
 
 ############################################ Get Nearest Location of Bin
@@ -195,162 +265,34 @@ async def getNearestBinLocation(update, context):
         return LOCATION_TWO
 
 
-############################################ Commands To Be Removed [2]
+############################################ Building of Bot
 
-async def chooseBreed(update, context):
-    keyboard = [
-        [
-            InlineKeyboardButton("British Shorthair", callback_data="bsho"),
-            InlineKeyboardButton("Bengal", callback_data="beng"),
-        ],
-        [
-            InlineKeyboardButton("Persian", callback_data="pers"),
-            InlineKeyboardButton("Munchkin", callback_data="munc"),
-        ]
-    ]
+bot = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
+# settings_handler = ConversationHandler(
+#         entry_points=[CommandHandler("settings", saveUser)],
+#         states={
+#             BREED: [MessageHandler(filters.Regex("""^(All of them!|
+#                                                       Bengal|
+#                                                       Persian|
+#                                                       Munchkin|
+#                                                       Ragamuffin|
+#                                                       Burmese|
+#                                                       Russian Blue|
+#                                                       Maine Coon|
+#                                                       Abyssinian)$"""), saveBreed)],
 
-    await update.message.reply_text("Please choose a breed:", reply_markup=reply_markup)
+#             NO_OF_PHOTOS: [
+#                             MessageHandler(filters.TEXT & filters.Regex("[1-9]"), saveNoOfPhotos), 
+#                             MessageHandler(~(filters.TEXT & filters.Regex("[1-9]")), invalidPhotoNo)
+#                           ],
 
-
-
-# async def getCatWithBreed(update, context):
-#     query = update.callback_query
-
-#     await query.answer()
-
-#     breed = query.data
-
-#     cats = requests.get(f'https://api.thecatapi.com/v1/images/search?api_key{CAT_API_KEY}&breed_ids={breed}').json()
-#     url = cats[0]['url']
-#     await context.bot.send_photo(chat_id=update.effective_chat.id, photo=url)
-
-async def saveUser(update, context):
-    user = update.message.from_user
-
-    user_info = {
-        'username': user.username,
-        'name': user.first_name,
-        'chat_id': update.effective_chat.id,
-        'breed': 'all',
-        'no_of_photos': '1',
-        'is_gif': False
-    } 
-
-    with open('users.json', 'r') as user_db:
-        users = json.load(user_db)
-
-    users[user.id] = user_info
-
-    with open('users.json', 'w') as user_db:
-        json.dump(users, user_db)
-
-    reply_keyboard = [["All of them!", "Bengal", "Persian"], 
-                      ["Munchkin", "Ragamuffin", "Burmese"],
-                      ["Russian Blue", "Maine Coon", "Abyssinian"]]
-
-    await update.message.reply_text(
-        "Ok, what's your favourite breed?",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Favourite Breed?"
-        )
-    )
-
-    return BREED
-
-async def saveBreed(update, context):
-    user = update.message.from_user
-
-    breed = update.message.text
-    breed_id = ''
-
-    if (breed == "All of them!"):
-        breed_id = "all"
-    elif (breed == "Bengal"):
-        breed_id = "beng"
-    elif (breed == "Persian"):
-        breed_id = "pers"
-    elif (breed == "Munchkin"):
-        breed_id = "munc"
-    elif (breed == "Ragamuffin"):
-        breed_id = "raga"
-    elif (breed == "Burmese"):
-        breed_id = "bure"
-    elif (breed == "Russian Blue"):
-        breed_id = "rblu"
-    elif (breed == "Maine Coon"):
-        breed_id = "mcoo"
-    elif (breed == "Abyssinian"):
-        breed_id = "abys"
-
-    with open('users.json', 'r') as user_db:
-        users = json.load(user_db)
-
-    users[str(user.id)]['breed'] = breed_id
-
-    with open('users.json', 'w') as user_db:
-        json.dump(users, user_db)
-
-    await update.message.reply_text(
-        "Good choice! how many photos would you like to get at once?",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-    return NO_OF_PHOTOS
-
-async def invalidPhotoNo(update, context):
-    await update.message.reply_text(
-        "Please enter a number between 1 and 9",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-    return NO_OF_PHOTOS
-
-async def saveNoOfPhotos(update, context):
-    user = update.message.from_user
-
-    no_of_photos = update.message.text
-
-    with open('users.json', 'r') as user_db:
-        users = json.load(user_db)
-
-    users[str(user.id)]['no_of_photos'] = no_of_photos
-
-    with open('users.json', 'w') as user_db:
-        json.dump(users, user_db)
-
-    reply_keyboard = [["GIF", "JPG"]]
-
-    await update.message.reply_text(
-        "Got it! Now do you want gifs or jpgs?",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Gif or Jpg?"
-        )
-    )
-
-    return GIF
-
-async def saveGif(update, context):
-    user = update.message.from_user
-
-    is_gif = update.message.text == "GIF"
-    
-    with open('users.json', 'r') as user_db:
-        users = json.load(user_db)
-
-    users[str(user.id)]['is_gif'] = is_gif
-
-    with open('users.json', 'w') as user_db:
-        json.dump(users, user_db)
-
-    await update.message.reply_text(
-        "Thanks! Your settings have been saved.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-    return ConversationHandler.END
-
+#             GIF: [
+#                 MessageHandler(filters.TEXT & filters.Regex("^(GIF|JPG)$"), saveGif),
+#             ],
+#         },
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#     )
 async def cancel(update, context):
     user = update.message.from_user
     await update.message.reply_text(
@@ -359,45 +301,7 @@ async def cancel(update, context):
 
     return ConversationHandler.END
 
-
-    
-
-
-############################################ Building of Bot
-
-bot = ApplicationBuilder().token(BOT_TOKEN).build()
-
-settings_handler = ConversationHandler(
-        entry_points=[CommandHandler("settings", saveUser)],
-        states={
-            BREED: [MessageHandler(filters.Regex("""^(All of them!|
-                                                      Bengal|
-                                                      Persian|
-                                                      Munchkin|
-                                                      Ragamuffin|
-                                                      Burmese|
-                                                      Russian Blue|
-                                                      Maine Coon|
-                                                      Abyssinian)$"""), saveBreed)],
-
-            NO_OF_PHOTOS: [
-                            MessageHandler(filters.TEXT & filters.Regex("[1-9]"), saveNoOfPhotos), 
-                            MessageHandler(~(filters.TEXT & filters.Regex("[1-9]")), invalidPhotoNo)
-                          ],
-
-            GIF: [
-                MessageHandler(filters.TEXT & filters.Regex("^(GIF|JPG)$"), saveGif),
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
 bot.add_handler(CommandHandler("hello", hello))
-bot.add_handler(CommandHandler("cat", getCat))
-# bot.add_handler(CommandHandler("breed", chooseBreed))
-bot.add_handler(CommandHandler("checkIfRecyclable", checkIfRecyclable))
-bot.add_handler(CallbackQueryHandler(getRecyclableItems))
-# bot.add_handler(CallbackQueryHandler(getCatWithBreed))
 locations_handler = ConversationHandler(
     entry_points=[CommandHandler('findNearestBin', getUserLocation)],
     states={
@@ -410,5 +314,16 @@ locations_handler = ConversationHandler(
     }, fallbacks=[CommandHandler("cancel", cancel)]
 )
 bot.add_handler(locations_handler)
+checkRecyclable_handler = ConversationHandler(
+    entry_points=[CommandHandler("checkIfRecyclable", checkIfRecyclable)],
+    states={RECYCLABLE_RESPONSE: [CallbackQueryHandler(getRecyclableItems)]}, fallbacks=[CommandHandler("cancel", cancel)]
+)
+quiz_handler = ConversationHandler(
+    entry_points=[CommandHandler("quiz", quiz)],
+    states={QUIZ_RESPONSE: [CallbackQueryHandler(disposeAns)]}, fallbacks=[CommandHandler("cancel", cancel)]
+)
+bot.add_handler(checkRecyclable_handler)
+bot.add_handler(quiz_handler)
+
 
 bot.run_polling()
