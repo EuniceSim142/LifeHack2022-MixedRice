@@ -1,6 +1,12 @@
 # LifeHack2022-MixedRice
 
 ## About Project
+| Features | Description |
+| :------------- |:-------------|
+| /start | Description of bot |
+| /checkifrecyclable | Check if an item is recyclable |
+| /findnearestbin | Find the nearest recycling bin |
+| /quiz | Test your recycling knowledge |
 
 ## Environment Setup
 This project uses local Virtual Environment to manage project dependencies. [(environment creation and activation guide)](https://docs.python.org/3/tutorial/venv.html)

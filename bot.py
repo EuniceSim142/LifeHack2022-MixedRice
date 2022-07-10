@@ -66,8 +66,9 @@ async def start(update, context):
 ############################################ Help
 async def help(update, context):
     reply = "Available Commands:\n\n"
-    reply += "/findnearestbin: Search for the closest Recycling Bin\n"
+    reply += "/findnearestbin: Find the nearest Recycling Bin\n"
     reply += "/checkifrecyclable: Check if an item is Recyclable\n"
+    reply += "/quiz: Test your recycling knowledge\n"
     await update.message.reply_text(reply)
 
 ############################################ Quiz
@@ -207,7 +208,7 @@ async def getRecyclableItems(update, context):
 
     print_item = f"List of {category} Items:\n"
     if len(items) == 0:
-        print_item = "Sorry, no item is found for this category"
+        return ConversationHandler.END
     else:
         for i in range(len(items)):
             if items[i][1]:
@@ -231,7 +232,8 @@ LOCATION_ONE, LOCATION_TWO = range(2)
 async def getUserLocation(update, context):
     reply_markup = ReplyKeyboardMarkup([
             [KeyboardButton("Share My Location\n(Only Available on Mobile Devices)", callback_data="Share", request_location=True)],
-            [KeyboardButton("Type My Location", callback_data="Type")]
+            [KeyboardButton("Type My Location", callback_data="Type")],
+            [KeyboardButton("Cancel", callback_data="Cancel")]
     ])
     
     await update.message.reply_text(text='Pick an option from below!', reply_markup=reply_markup)
@@ -265,13 +267,13 @@ async def getNearestBinLocation(update, context):
         return ConversationHandler.END
 
     else:
-        await update.message.reply_text(f'Unable to find specified location\n\nType your location again!')
-        return LOCATION_TWO
+        await update.message.reply_text(f'Sorry I can\'t find your location :(')
+        return ConversationHandler.END
 
 async def cancel(update, context):
     user = update.message.from_user
     await update.message.reply_text(
-        "Ok, we'll stop saving your settings", reply_markup=ReplyKeyboardRemove()
+        "Operation Ended", reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
@@ -281,13 +283,17 @@ async def cancel(update, context):
 
 bot = ApplicationBuilder().token(BOT_TOKEN).build()
 
+bot.add_handler(CommandHandler("start", start))
+bot.add_handler(CommandHandler("help", help))
+
 bot.add_handler(CommandHandler("hello", hello))
 
 locations_handler = ConversationHandler(
     entry_points=[CommandHandler('findNearestBin', getUserLocation)],
     states={
         LOCATION_ONE: [
-            MessageHandler(filters.TEXT, getLocation),
+            MessageHandler(filters.TEXT & filters.Regex('Type'), getLocation),
+            MessageHandler(filters.TEXT & filters.Regex('Cancel'), cancel),
             MessageHandler(filters.LOCATION, generateLocation)
         ],
         LOCATION_TWO: [
